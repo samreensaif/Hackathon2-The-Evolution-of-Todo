@@ -1,0 +1,14 @@
+{
+  "name": "todo-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Next.js frontend for Todo App (Phase II)",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint . --ext .ts,.tsx"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

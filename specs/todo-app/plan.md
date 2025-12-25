@@ -1,97 +1,115 @@
 ```markdown
-# Plan: Phase I — In‑Memory Todo Console App
+# Plan: Phase II — Web Application Architecture & Roadmap
 
 **Source:** [specs/todo-app/spec.md](specs/todo-app/spec.md)
 
-**Goal:** Deliver a Python 3.13+ console application that implements the five core todo features (add, view, mark complete/incomplete, update, delete) using in‑memory storage and a clear CLI.
+**Goal:** Define the architecture and implementation plan for Phase II: front end using Next.js, backend using FastAPI, persistent DB on Neon (Postgres), data modelling and access via SQLModel, and authentication using BetterAuth with JWTs. This file focuses on architecture, responsibilities, sequencing, and acceptance checks (WHAT and high-level HOW decisions to guide implementation teams). No production code is included here.
 
-## Architecture overview
+## High‑level Architecture
 
-- Style: small, layered CLI application following single‑responsibility principles.
-- Layers:
-  - Data Model: lightweight dataclasses for DTOs.
-  - Repository: in‑memory storage with a simple CRUD API and auto‑increment ID.
-  - Service / Use‑cases: validation, business rules, and repository orchestration.
-  - UI / Controller: console menu loop, input parsing, presentation and error mapping.
+- Frontend: Next.js (React, TypeScript) single‑page application (SPA) with server‑side rendering where appropriate for SEO / initial load. Client communicates with backend via REST API.
+- Backend: FastAPI (Python) exposing versioned REST endpoints under `/api/v1/*`. FastAPI handles JSON I/O, request validation (Pydantic/SQLModel), and ASGI hosting.
+- Database: Neon (Postgres-compatible serverless) as primary persistent store. Data access via SQLModel for typed models and migrations managed by Alembic (or equivalent).
+- Authentication: BetterAuth (identity provider) integrated for user registration/management; backend verifies and issues JWTs for API access. JWTs include `sub`, `exp`, and `iat` claims.
+- Deployment: Cloud hosting for frontend (e.g., Vercel) and backend (serverless or containerized on a managed service). Neon provides DB hosting; secrets stored in platform secret manager.
 
-## File structure
+## Component Responsibilities
 
-- `specs/todo-app/plan.md` — this plan.
-- `README.md` — run and usage instructions.
-- `main.py` — entrypoint; runs console loop.
-- `todo/`
-  - `__init__.py`
-  - `models.py` — `Task` dataclass.
-  - `repository.py` — `InMemoryTaskRepository` (add/get/update/delete/list).
-  - `service.py` — `TaskService` (business logic, validations).
-  - `ui.py` — console helpers and menu render/prompt functions.
-  - `errors.py` — custom exceptions: `NotFoundError`, `ValidationError`.
-- `tests/manual_checks.md` (optional) — manual acceptance checklist.
+- Frontend (Next.js)
+  - Pages/Routes: Login/Register, Task List (with filters/search), Task Create/Edit, Account/Profile, Settings.
+  - Auth: store short‑lived access token (in memory) and refresh token if used (httpOnly cookie). Send `Authorization: Bearer <JWT>` on API calls.
+  - UX: optimistic UI for create/update/delete with server reconciliation; client‑side validation for title non‑emptiness.
+  - Tests: unit tests for components, E2E tests (Playwright or Cypress) for key flows.
 
-## Component responsibilities
+- Backend (FastAPI)
+  - API: implements REST contract in `spec.md` (auth endpoints, task CRUD). Uses SQLModel declarative models mapping to Postgres tables.
+  - Auth Integration: registration/login endpoints optional if BetterAuth handles registration; backend must accept and verify BetterAuth tokens or exchange credentials to obtain JWTs. Backend issues its own signed JWTs for client usage if required, or relies on BetterAuth issued JWTs (TO DECIDE — see open questions).
+  - Business Logic: `services` layer implements validations and ownership checks; `repositories` layer handles DB interactions via SQLModel sessions.
+  - Migrations: Alembic configured to manage schema evolution.
+  - Tests: unit tests for services, integration tests for DB (use test DB, fixtures), and contract tests for API.
 
-- `Task` (`todo/models.py`)
+- Database (Neon + SQLModel)
+  - Logical schema: `users` (id UUID, email unique, password_hash if local auth, name, created_at, updated_at), `tasks` (id UUID, user_id FK, title, description, completed boolean, created_at, updated_at).
+  - Indexes: index on (`user_id`, `created_at`) and `email` unique constraint.
+  - Migration strategy: Alembic migration scripts; CI runs migrations or ensures migrations are applied at deploy.
 
-  - Attributes: `id: int`, `title: str`, `description: Optional[str]`, `completed: bool` (defaults to `False`).
-  - `id` assigned by repository; model is a simple DTO.
+- Auth (BetterAuth + JWT)
+  - User lifecycle: registration → email verification (optional) → login → token issuance.
+  - JWT characteristics: short lived access tokens (e.g., 15m), optional refresh tokens (rotating), `sub` claim set to user id, `roles` claim optional.
+  - Revocation: Phase II relies primarily on short TTLs and optional refresh token rotation; server‑side blacklist is optional for future phases.
 
-- `InMemoryTaskRepository` (`todo/repository.py`)
+## Data Flow
 
-  - Maintains in‑memory dict/list and `next_id` counter.
-  - Methods: `add(data) -> Task`, `get(id) -> Task`, `update(id, fields) -> Task`, `delete(id) -> None`, `list() -> list[Task]`.
+1. User authenticates via BetterAuth or backend auth endpoint; receives JWT (and refresh token if used).
+2. Frontend stores tokens securely (httpOnly cookie for refresh token; access token in memory) and sends `Authorization` header on API requests.
+3. Backend middleware validates JWT signature, expiry, and extracts `sub` as `user_id` for request context.
+4. Backend handlers use `user_id` to scope DB queries (tasks filtered by owner).
 
-- `TaskService` (`todo/service.py`)
+## Security Considerations
 
-  - Validates inputs (non‑empty titles), enforces business rules, calls repository methods.
-  - Raises controlled exceptions (`ValidationError`, `NotFoundError`) for the UI to present.
+- Enforce TLS (HTTPS) for all client ↔ server and server ↔ BetterAuth/Neon communications.
+- Store secrets in secret manager; do not commit keys.
+- Protect auth endpoints with rate limiting and login brute‑force protections.
+- Ensure proper owner checks on task endpoints (return 404 for non‑owned resources to avoid information leaks).
 
-- `UI` (`main.py` + `todo/ui.py`)
+## Operational Concerns
 
-  - Presents a numbered menu: Add, View All, Update, Delete, Mark Complete/Incomplete, Quit.
-  - Parses and validates user input safely and maps exceptions to friendly messages.
+- Observability: structured logging, distributed tracing (optional), and error aggregation (Sentry). Instrument auth failures, DB errors, and critical business errors.
+- Backups: configure Neon automated backups and document restore procedure.
+- CI/CD: GitHub Actions pipeline to run linting, unit tests, build frontend, run backend tests, and deploy artifacts (frontend to Vercel, backend to target platform). Apply DB migrations during deployment with safety checks.
 
-- `errors.py`
-  - Small error types to enable clear control flow between service and UI.
+## Implementation Plan & Milestones
 
-## Execution flow (user journeys)
+Phase II is divided into 4 sprints (2–3 week cadence recommended):
 
-- Start: `python main.py` → welcome message and menu.
-- Add task: UI prompts `Title` (non‑empty) and optional `Description` → `TaskService.create(...)` → repository assigns ID and stores → UI prints success.
-- View all: `TaskService.list()` → UI formats rows `ID | [ ]/[x] | Title` or prints `No tasks yet.`
-- Mark complete/incomplete: UI prompts `ID` and desired status (or toggles) → `TaskService.mark(id, completed)` → UI confirms.
-- Update: UI prompts `ID` → fetches task → prompts new title/description (blank to keep) → `TaskService.update(...)` → UI shows updated task.
-- Delete: UI prompts `ID`, asks for confirmation `Y/n` → `TaskService.delete(id)` → UI confirms removal.
-- Errors: invalid ID or empty title produce friendly messages; app does not crash.
+- Sprint 1 — Foundation (week 1)
+  - Task 1.1: Repo scaffolding: `web/` (Next.js), `api/` (FastAPI), infra manifests (deployment, env examples).
+  - Task 1.2: DB & migrations: define SQLModel models and initial Alembic migration for `users` and `tasks` tables.
+  - Task 1.3: Auth integration spike: prototype BetterAuth token verification flow.
 
-## Acceptance checks (mapped to spec)
+- Sprint 2 — Core API & Auth (week 2)
+  - Task 2.1: Implement FastAPI endpoints for task CRUD with ownership checks.
+  - Task 2.2: Implement auth middleware to validate JWT and populate `current_user` in request context.
+  - Task 2.3: Add unit and integration tests for services and API endpoints.
 
-- SC-001 (Functionality): Manual checklist in `tests/manual_checks.md` covering add/view/update/delete/mark.
-- SC-002 (Input handling): Add/Update must reject empty titles; invalid IDs produce `No task with ID X` messages.
-- SC-003 (Usability): Menu shows clear options and exits cleanly.
+- Sprint 3 — Frontend & UX (week 3)
+  - Task 3.1: Implement Next.js pages: login/register, task list, create/edit modals.
+  - Task 3.2: Wire auth flows: login UI → receive tokens → call API.
+  - Task 3.3: E2E tests for critical flows (register/login/create/list/update/delete).
 
-## Minimal API (signatures)
+- Sprint 4 — Harden & Release (week 4)
+  - Task 4.1: Add pagination, filtering, and search to task list API and UI.
+  - Task 4.2: Add logging, monitoring, and automated DB backups config.
+  - Task 4.3: Run acceptance tests, finalize docs and migration plan, and cut release.
 
-- `TaskService.create(title: str, description: Optional[str]) -> Task`
-- `TaskService.list() -> list[Task]`
-- `TaskService.get(id: int) -> Task`
-- `TaskService.update(id: int, title: Optional[str], description: Optional[str]) -> Task`
-- `TaskService.delete(id: int) -> None`
-- `TaskService.mark(id: int, completed: bool) -> Task`
+## Acceptance Criteria (Phase II)
 
-## Risks & mitigations
+- [ ] Frontend communicates with API over HTTPS and handles token lifecycle without exposing secrets.
+- [ ] Authenticated users can perform all task CRUD operations and cannot access other users' tasks.
+- [ ] Database persists tasks and users across restarts; migrations applied cleanly in staging.
+- [ ] CI runs tests and linters; deploys to staging; rolling deploys to production are documented.
 
-- Invalid user input causing crashes — centralize validation in `TaskService` and safe parsing in UI.
-- User confusion with menu wording — use concise labels and short usage examples in `README.md`.
-- Scope creep — lock Phase I to the five user stories; defer extras to Phase II.
+## Testing Strategy
 
-## Next steps
+- Unit tests: services and utilities.
+- Integration tests: DB-backed tests using a test Postgres instance (or Dockerized Neon emulation) and test fixtures.
+- Contract tests: ensure API responses match OpenAPI schemas.
+- E2E tests: user flows in the browser (login, create/update/delete tasks).
 
-1. Scaffold the project files (`todo/` package and `main.py`).
-2. Implement `Task` and `InMemoryTaskRepository` (auto‑incrementing `id`).
-3. Implement `TaskService` and `UI` with error handling.
-4. Run manual acceptance checks listed in `tests/manual_checks.md`.
+## Risks & Open Questions
+
+- BetterAuth vs local auth: Decide whether the backend issues its own JWTs or fully trusts BetterAuth tokens. Tradeoffs: centralized identity (outsourced) vs control over token lifecycle.
+- Neon limits and cold starts: serverless DB may introduce latency; plan for connection pooling and retry/backoff logic.
+- Refresh token strategy: rotating refresh tokens add security but require server‑side state. Product decision required.
+
+## Next Tactical Steps
+
+1. Agree on auth token ownership model (BetterAuth tokens vs backend‑issued JWTs).
+2. Create OpenAPI draft for API endpoints (based on `spec.md`).
+3. Scaffold repos and CI pipeline; create initial Alembic migration.
 
 ---
 
-This plan implements the constraints and acceptance criteria in [specs/todo-app/spec.md](specs/todo-app/spec.md).
+This plan complements the Phase II specification in [specs/todo-app/spec.md](specs/todo-app/spec.md). Replace Phase I console plan with this file for Phase II work.
+``` 
 ```

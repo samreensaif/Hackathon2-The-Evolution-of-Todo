@@ -1,3 +1,12 @@
+# Hackathon2-Todo
+
+Monorepo scaffold for Phase II of the Todo app. Contains:
+
+- `web/` — Next.js frontend scaffold
+- `api/` — FastAPI backend scaffold
+- `specs/` — specifications, plan, and tasks
+
+This README was updated when scaffolding T001.
 # In‑Memory Todo Console App — Phase I
 
 Run the console application:
