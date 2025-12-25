@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node / tooling
+node_modules/
+
+# Agent / AI
+.claude/
+
+# Logs
+*.log
