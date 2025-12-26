@@ -72,9 +72,10 @@ def list_tasks(
             stmt = stmt.where(Task.completed == completed)
         if q:
             stmt = stmt.where(Task.title.ilike(f"%{q}%"))
-        
+
         # Count total matches
         from sqlmodel import func
+
         count_stmt = select(func.count()).select_from(stmt.alias())
         total = session.exec(count_stmt).one()
 
@@ -100,7 +101,9 @@ def get_task(task_id: UUID, current_user: dict = Depends(require_current_user)):
 
 @router.patch("/tasks/{task_id}", response_model=Task)
 def update_task(
-    task_id: UUID, task_in: TaskUpdateModel, current_user: dict = Depends(require_current_user)
+    task_id: UUID,
+    task_in: TaskUpdateModel,
+    current_user: dict = Depends(require_current_user),
 ):
     user_id = _user_id_from_payload(current_user)
     with Session(engine) as session:

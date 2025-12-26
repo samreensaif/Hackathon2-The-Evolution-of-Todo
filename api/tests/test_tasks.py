@@ -32,6 +32,7 @@ def test_create_and_list_tasks(client):
     assert response.status_code == 200
     assert response.json()["title"] == "Test Task"
 
+
 def test_unauthorized_access(client):
     response = client.get("/api/v1/tasks")
     assert response.status_code == 401

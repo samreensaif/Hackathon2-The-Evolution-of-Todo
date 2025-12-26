@@ -1,6 +1,7 @@
 """FastAPI app for Todo API (Phase II)."""
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
 
@@ -30,6 +31,7 @@ app.add_middleware(
 # --------------------------------------------------
 app.add_middleware(AuthMiddleware)
 
+
 # --------------------------------------------------
 # Health Check
 # --------------------------------------------------
@@ -40,6 +42,7 @@ def health(request: Request):
         "status": "ok",
         "authenticated": bool(user),
     }
+
 
 # --------------------------------------------------
 # API Routers

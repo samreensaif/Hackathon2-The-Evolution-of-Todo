@@ -9,6 +9,7 @@ from todo.db import engine as prod_engine
 # Use in-memory SQLite for testing
 sqlite_url = "sqlite://"
 
+
 @pytest.fixture(name="session")
 def session_fixture():
     engine = create_engine(
@@ -20,6 +21,7 @@ def session_fixture():
     with Session(engine) as session:
         yield session
 
+
 @pytest.fixture(name="client")
 def client_fixture(session: Session):
     def get_session_override():
@@ -30,15 +32,15 @@ def client_fixture(session: Session):
     import todo.db
     import todo.routes.tasks
     import todo.routes.auth
-    
+
     old_engine = todo.db.engine
-    todo.db.engine = session.bind # session.bind is the engine
+    todo.db.engine = session.bind  # session.bind is the engine
     todo.routes.tasks.engine = session.bind
     todo.routes.auth.engine = session.bind
-    
+
     client = TestClient(app)
     yield client
-    
+
     todo.db.engine = old_engine
     todo.routes.tasks.engine = old_engine
     todo.routes.auth.engine = old_engine

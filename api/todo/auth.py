@@ -45,7 +45,9 @@ def _get_algo() -> str:
 
 def _get_key(is_signing: bool = False) -> str | None:
     if is_signing:
-        return JWT_PRIVATE_KEY if JWT_PRIVATE_KEY else (JWT_SECRET or BETTER_AUTH_SECRET)
+        return (
+            JWT_PRIVATE_KEY if JWT_PRIVATE_KEY else (JWT_SECRET or BETTER_AUTH_SECRET)
+        )
     return JWT_PUBLIC_KEY if JWT_PUBLIC_KEY else (JWT_SECRET or BETTER_AUTH_SECRET)
 
 
@@ -57,7 +59,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     else:
         expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
-    
+
     algo = _get_algo()
     key = _get_key(is_signing=True)
     if not key:
@@ -65,7 +67,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
             status_code=500,
             detail="JWT signing not configured (missing JWT_PRIVATE_KEY, JWT_SECRET, or BETTER_AUTH_SECRET)",
         )
-    
+
     encoded_jwt = jwt.encode(to_encode, key, algorithm=algo)
     return encoded_jwt
 
@@ -114,7 +116,9 @@ class AuthMiddleware:
             try:
                 payload = verify_jwt(token)
             except HTTPException as exc:
-                response = JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+                response = JSONResponse(
+                    {"detail": exc.detail}, status_code=exc.status_code
+                )
                 await response(scope, receive, send)
                 return
             # Attach to scope state so endpoints/middlewares can access it
