@@ -3,18 +3,24 @@ name = "todo-api"
 version = "0.1.0"
 description = "FastAPI backend for Todo App (Phase II)"
 authors = ["team <dev@example.com>"]
+packages = [{include = "todo"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"
-fastapi = "^0.95"
+fastapi = "^0.115.0"
 uvicorn = {extras = ["standard"], version = "^0.22"}
-sqlmodel = "^0.0.8"
+sqlmodel = ">=0.0.14"
+sqlalchemy = ">=2.0.0"
 alembic = "^1.11"
 python-jose = {extras = ["cryptography"], version = "^3.3.0"}
+passlib = {extras = ["bcrypt"], version = "^1.7.4"}
+psycopg2-binary = "^2.9"
+bcrypt = "4.0.1"
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
 pytest = "^7.0"
 black = "^23.9"
+httpx = ">=0.23.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

@@ -1,5 +1,10 @@
+import sys
+from pathlib import Path
 import os
-from logging.config import fileConfig
+# from logging.config import fileConfig
+
+# Add project root to Python path
+sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from sqlalchemy import create_engine
 from sqlalchemy import pool
@@ -12,9 +17,10 @@ from sqlmodel import SQLModel
 # access to the values within the .ini file in use.
 config = context.config
 
+# Logging disabled for simplicity
 # Interpret the config file for Python logging.
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+# if config.config_file_name is not None:
+#     fileConfig(config.config_file_name)
 
 # import models so that SQLModel.metadata is populated
 from todo.models import *  # noqa: E402,F401

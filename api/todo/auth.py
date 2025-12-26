@@ -21,6 +21,7 @@ This implements the verification strategy recommended by the BetterAuth spike
 from __future__ import annotations
 
 import os
+from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
 from fastapi import HTTPException, Request
@@ -29,14 +30,44 @@ from jose import JWTError, jwt
 
 
 JWT_PUBLIC_KEY = os.getenv("JWT_PUBLIC_KEY")
+JWT_PRIVATE_KEY = os.getenv("JWT_PRIVATE_KEY")
 JWT_SECRET = os.getenv("JWT_SECRET")
+BETTER_AUTH_SECRET = os.getenv("BETTER_AUTH_SECRET")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 
 
 def _get_algo() -> str:
     if JWT_ALGORITHM:
         return JWT_ALGORITHM
-    return "RS256" if JWT_PUBLIC_KEY else "HS256"
+    return "RS256" if (JWT_PUBLIC_KEY or JWT_PRIVATE_KEY) else "HS256"
+
+
+def _get_key(is_signing: bool = False) -> str | None:
+    if is_signing:
+        return JWT_PRIVATE_KEY if JWT_PRIVATE_KEY else (JWT_SECRET or BETTER_AUTH_SECRET)
+    return JWT_PUBLIC_KEY if JWT_PUBLIC_KEY else (JWT_SECRET or BETTER_AUTH_SECRET)
+
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    """Create a new JWT access token."""
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    
+    algo = _get_algo()
+    key = _get_key(is_signing=True)
+    if not key:
+        raise HTTPException(
+            status_code=500,
+            detail="JWT signing not configured (missing JWT_PRIVATE_KEY, JWT_SECRET, or BETTER_AUTH_SECRET)",
+        )
+    
+    encoded_jwt = jwt.encode(to_encode, key, algorithm=algo)
+    return encoded_jwt
 
 
 def verify_jwt(token: str) -> Dict[str, Any]:
@@ -45,11 +76,11 @@ def verify_jwt(token: str) -> Dict[str, Any]:
     Raises `HTTPException(status_code=401)` on verification errors.
     """
     algo = _get_algo()
-    key = JWT_PUBLIC_KEY if JWT_PUBLIC_KEY else JWT_SECRET
+    key = _get_key(is_signing=False)
     if not key:
         raise HTTPException(
             status_code=500,
-            detail="JWT verification not configured (missing JWT_PUBLIC_KEY or JWT_SECRET)",
+            detail="JWT verification not configured (missing JWT_PUBLIC_KEY, JWT_SECRET, or BETTER_AUTH_SECRET)",
         )
     try:
         payload = jwt.decode(token, key, algorithms=[algo])
